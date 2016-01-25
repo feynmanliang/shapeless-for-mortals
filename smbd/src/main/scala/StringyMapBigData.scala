@@ -76,22 +76,45 @@ package object impl {
   }
   implicit def coproductBigDataFormat[Name <: Symbol, Head, Tail <: Coproduct](
     implicit
-    key: Witness.Aux[Key],
-    sp: SPrimitive[Value],
-    lazyBdft: Lazy[BigDataFormat[Remaining]]
+    key: Witness.Aux[Name],
+    sp: SPrimitive[Head],
+    lazyBdft: Lazy[BigDataFormat[Tail]]
   ): BigDataFormat[FieldType[Name, Head] :+: Tail] = new BigDataFormat[FieldType[Name, Head] :+: Tail] {
-    def label: String = ???
+    val bdft = lazyBdft.value
+    def label: String = key.value.name
     def toProperties(lr: FieldType[Name, Head] :+: Tail): StringyMap = lr match {
-      case Inl(found) => ???
-      case Inr(tail) => ???
+      case Inl(head) =>
+        val m = new StringyMap()
+        m.put(label, sp.toValue(head))
+        m
+      case Inr(tail) => bdft.toProperties(tail)
     }
-    def fromProperties(m: StringyMap): BigResult[FieldType[Name, Head] :+: Tail] = ???
+    def fromProperties(m: StringyMap): BigResult[FieldType[Name, Head] :+: Tail] = {
+      if (m.containsKey(label)) {
+        Right(Inl(field[Name](sp.fromValue(m.get(label)))))
+      } else {
+        bdft.fromProperties(m) match {
+          case Left(err) => Left(err)
+          case Right(tail) => Right(Inr(tail))
+        }
+      }
+    }
   }
 
-  implicit def familyBigDataFormat[T](): BigDataFormat[T] = new BigDataFormat[T] {
-    def label: String = ???
-    def toProperties(t: T): StringyMap = ???
-    def fromProperties(m: StringyMap): BigResult[T] = ???
+  implicit def familyBigDataFormat[T, Repr](
+    implicit
+    gen: LabelledGeneric.Aux[T, Repr],
+    lazySg: Lazy[BigDataFormat[Repr]],
+    tpe: Typeable[T]
+  ): BigDataFormat[T] = new BigDataFormat[T] {
+    val sg = lazySg.value
+
+    def label: String = sg.label
+    def toProperties(t: T): StringyMap = sg.toProperties(gen.to(t))
+    def fromProperties(m: StringyMap): BigResult[T] = sg.fromProperties(m) match {
+      case Left(err) => Left(err)
+      case Right(res) => Right(gen.from(res))
+    }
   }
 }
 
