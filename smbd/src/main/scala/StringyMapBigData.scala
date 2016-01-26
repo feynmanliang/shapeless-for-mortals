@@ -120,14 +120,14 @@ package object impl {
   implicit def familyBigDataFormat[T, Repr](
     implicit
     gen: LabelledGeneric.Aux[T, Repr],
-    lazySg: Lazy[BigDataFormat[Repr]],
+    lazyBdf: Lazy[BigDataFormat[Repr]],
     tpe: Typeable[T]
   ): BigDataFormat[T] = new BigDataFormat[T] {
-    val sg = lazySg.value
+    val bdf = lazyBdf.value
 
-    def label: String = sg.label
-    def toProperties(t: T): StringyMap = sg.toProperties(gen.to(t))
-    def fromProperties(m: StringyMap): BigResult[T] = sg.fromProperties(m) match {
+    def label: String = bdf.label
+    def toProperties(t: T): StringyMap = bdf.toProperties(gen.to(t))
+    def fromProperties(m: StringyMap): BigResult[T] = bdf.fromProperties(m) match {
       case Left(err) => Left(err)
       case Right(res) => Right(gen.from(res))
     }
@@ -135,9 +135,17 @@ package object impl {
 }
 
 package impl {
-  //import api._
+  import api._
 
   // EXERCISE 1.2 goes here
+  class bdfIdentity[Name <: Symbol, T, V](
+      implicit
+      k: Witness.Aux[Name],
+      gen: LabelledGeneric.Aux[T, V]
+  ) extends BigDataFormatId[T, V] {
+    def key: String = k.value.name
+    def value(t: T): V = gen.to(t)
+  }
 }
 
 package object syntax {
