@@ -15,7 +15,7 @@ import shapeless._, labelled.{ field, FieldType }
  * - Exercise 1.2: define identity constraints using singleton types.
  */
 package object api {
-  type StringyMap = java.util.HashMap[String, AnyRef]
+  type StringyMap = java.util.HashMap[String, Any]
   type BigResult[T] = Either[String, T] // aggregating errors doesn't add much
 }
 
@@ -27,8 +27,8 @@ package api {
   }
 
   trait SPrimitive[V] {
-    def toValue(v: V): AnyRef
-    def fromValue(v: AnyRef): V
+    def toValue(v: V): Any
+    def fromValue(v: Any): V
   }
 
   // EXERCISE 1.2
@@ -42,8 +42,24 @@ package object impl {
   import api._
 
   // EXERCISE 1.1 goes here
+  implicit object IntSPrimitive extends SPrimitive[Int] {
+    def toValue(v: Int): Any = v
+    def fromValue(v: Any): Int = v.asInstanceOf[Int]
+  }
+  implicit object StringSPrimitive extends SPrimitive[String] {
+    def toValue(v: String): Any = v
+    def fromValue(v: Any): String = v.asInstanceOf[String]
+  }
+  implicit object BooleanSPrimitive extends SPrimitive[Boolean] {
+    def toValue(v: Boolean): Any = v
+    def fromValue(v: Any): Boolean = v.asInstanceOf[Boolean]
+  }
+  implicit object DoubleSPrimitive extends SPrimitive[Double] {
+    def toValue(v: Double): Any = v
+    def fromValue(v: Any): Double = v.asInstanceOf[Double]
+  }
   implicit object hNilBigDataFormat extends BigDataFormat[HNil] {
-    def label: String = ""
+    def label: String = "EMPTY"
     def toProperties(t: HNil): StringyMap = new StringyMap()
     def fromProperties(m: StringyMap): BigResult[HNil] = Right(HNil)
   }
