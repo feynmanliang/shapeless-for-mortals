@@ -15,7 +15,7 @@ import shapeless._, labelled.{ field, FieldType }
  * - Exercise 1.2: define identity constraints using singleton types.
  */
 package object api {
-  type StringyMap = java.util.HashMap[String, Any]
+  type StringyMap = java.util.HashMap[String, AnyRef]
   type BigResult[T] = Either[String, T] // aggregating errors doesn't add much
 }
 
@@ -27,8 +27,8 @@ package api {
   }
 
   trait SPrimitive[V] {
-    def toValue(v: V): Any
-    def fromValue(v: Any): V
+    def toValue(v: V): AnyRef
+    def fromValue(v: AnyRef): V
   }
 
   // EXERCISE 1.2
@@ -43,20 +43,20 @@ package object impl {
 
   // EXERCISE 1.1 goes here
   implicit object IntSPrimitive extends SPrimitive[Int] {
-    def toValue(v: Int): Any = v
-    def fromValue(v: Any): Int = v.asInstanceOf[Int]
+    def toValue(v: Int): AnyRef = Integer.valueOf(v)
+    def fromValue(v: AnyRef): Int = v.asInstanceOf[Int]
   }
   implicit object StringSPrimitive extends SPrimitive[String] {
-    def toValue(v: String): Any = v
-    def fromValue(v: Any): String = v.asInstanceOf[String]
+    def toValue(v: String): AnyRef = v
+    def fromValue(v: AnyRef): String = v.asInstanceOf[String]
   }
   implicit object BooleanSPrimitive extends SPrimitive[Boolean] {
-    def toValue(v: Boolean): Any = v
-    def fromValue(v: Any): Boolean = v.asInstanceOf[Boolean]
+    def toValue(v: Boolean): AnyRef = java.lang.Boolean.valueOf(v)
+    def fromValue(v: AnyRef): Boolean = v.asInstanceOf[Boolean]
   }
   implicit object DoubleSPrimitive extends SPrimitive[Double] {
-    def toValue(v: Double): Any = v
-    def fromValue(v: Any): Double = v.asInstanceOf[Double]
+    def toValue(v: Double): AnyRef = java.lang.Double.valueOf(v)
+    def fromValue(v: AnyRef): Double = v.asInstanceOf[Double]
   }
   implicit object hNilBigDataFormat extends BigDataFormat[HNil] {
     def label: String = "EMPTY"
@@ -77,11 +77,13 @@ package object impl {
       m
     }
     def fromProperties(m: StringyMap): BigResult[FieldType[Key, Value] :: Remaining] = {
-      val head = sp.fromValue(m.get(key.value.name))
-      m.remove(key.value.name)
-      bdft.fromProperties(m) match {
-        case Left(err) => Left(err)
-        case Right(tail) => Right(field[Key](head) :: tail)
+      (m.get(key.value.name) match {
+        case null => Left("some sensible error here")
+        case value => Right(sp.fromValue(value))
+      }).right.flatMap { head =>
+        bdft.fromProperties(m).right.map { tail =>
+          field[Key](head) :: tail
+        }
       }
     }
   }
@@ -93,26 +95,24 @@ package object impl {
   implicit def coproductBigDataFormat[Name <: Symbol, Head, Tail <: Coproduct](
     implicit
     key: Witness.Aux[Name],
-    sp: SPrimitive[Head],
+    lazyBdfh: Lazy[BigDataFormat[Head]],
     lazyBdft: Lazy[BigDataFormat[Tail]]
   ): BigDataFormat[FieldType[Name, Head] :+: Tail] = new BigDataFormat[FieldType[Name, Head] :+: Tail] {
+    val bdfh = lazyBdfh.value
     val bdft = lazyBdft.value
     def label: String = key.value.name
     def toProperties(lr: FieldType[Name, Head] :+: Tail): StringyMap = lr match {
       case Inl(head) =>
-        val m = new StringyMap()
-        m.put(label, sp.toValue(head))
+        val m = bdfh.toProperties(head)
+        m.put("_type", label)
         m
       case Inr(tail) => bdft.toProperties(tail)
     }
     def fromProperties(m: StringyMap): BigResult[FieldType[Name, Head] :+: Tail] = {
-      if (m.containsKey(label)) {
-        Right(Inl(field[Name](sp.fromValue(m.get(label)))))
+      if (m.get("_type").asInstanceOf[String] == label) {
+        bdfh.fromProperties(m).right.map(x => Inl(field[Name](x)))
       } else {
-        bdft.fromProperties(m) match {
-          case Left(err) => Left(err)
-          case Right(tail) => Right(Inr(tail))
-        }
+        bdft.fromProperties(m).right.map(x => Inr(x))
       }
     }
   }
