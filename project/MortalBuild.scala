@@ -7,10 +7,8 @@ object EnsimeBuild extends Build {
   override lazy val settings = super.settings ++ Seq(
     version := "1.0",
     scalaVersion := "2.11.7",
-    scalacOptions ++= Seq("-unchecked", "-deprecation")
-  )
+    scalacOptions ++= Seq("-unchecked", "-deprecation"),
 
-  lazy override val settings = super.settings ++ Seq(
     // sbt, STFU...
     ivyLoggingLevel := UpdateLogging.Quiet,
 
