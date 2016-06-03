@@ -72,10 +72,10 @@ package app {
 
     // uncomment this when the above succeed
     it should "fail to marshall a case class with an unsupported value" in {
-       shapeless.test.illTyped(
-         """implicitly[BigDataFormat[Coffee]]""",
-         ".*could not find implicit value for evidence parameter of type.*"
-       )
+      shapeless.test.illTyped(
+        """implicitly[BigDataFormat[Coffee]]""",
+        ".*could not find implicit value for parameter .*"
+      )
     }
 
   }
